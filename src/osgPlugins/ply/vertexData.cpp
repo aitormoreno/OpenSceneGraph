@@ -35,6 +35,7 @@ VertexData::VertexData()
     _diffuse = NULL;
     _ambient = NULL;
     _specular = NULL;
+	_textcoords = NULL;
 }
 
 
@@ -66,6 +67,8 @@ void VertexData::readVertices( PlyFile* file, const int nVertices,
         unsigned char   specular_blue;
         float           specular_coeff;
         float           specular_power;
+		float           u;
+		float           v;
     } vertex;
 
     PlyProperty vertexProps[] =
@@ -91,6 +94,8 @@ void VertexData::readVertices( PlyFile* file, const int nVertices,
         { "specular_blue", PLY_UCHAR, PLY_UCHAR, offsetof( _Vertex, specular_blue ), 0, 0, 0, 0 },
         { "specular_coeff", PLY_FLOAT, PLY_FLOAT, offsetof( _Vertex, specular_coeff ), 0, 0, 0, 0 },
         { "specular_power", PLY_FLOAT, PLY_FLOAT, offsetof( _Vertex, specular_power ), 0, 0, 0, 0 },
+		{ "u", PLY_FLOAT, PLY_FLOAT, offsetof(_Vertex, u), 0, 0, 0, 0 },
+		{ "v", PLY_FLOAT, PLY_FLOAT, offsetof(_Vertex, v), 0, 0, 0, 0 },
     };
 
     // use all 6 properties when reading colors, only the first 3 otherwise
@@ -119,6 +124,10 @@ void VertexData::readVertices( PlyFile* file, const int nVertices,
     if (fields & SPECULAR)
       for( int i = 16; i < 21; ++i )
         ply_get_property( file, "vertex", &vertexProps[i] );
+	
+	if (fields & TEXTCOORDS)
+		for (int i = 21; i < 23; ++i)
+			ply_get_property(file, "vertex", &vertexProps[i]);
 
     // check whether array is valid otherwise allocate the space
     if(!_vertices.valid())
@@ -155,6 +164,12 @@ void VertexData::readVertices( PlyFile* file, const int nVertices,
             _specular = new osg::Vec4Array;
     }
 
+	if (fields & TEXTCOORDS)
+	{
+		if (!_textcoords.valid())
+			_textcoords = new osg::Vec2Array;
+	}
+	
     // read in the vertices
     for( int i = 0; i < nVertices; ++i )
     {
@@ -186,6 +201,9 @@ void VertexData::readVertices( PlyFile* file, const int nVertices,
             _specular->push_back( osg::Vec4( (unsigned int) vertex.specular_red / 255.0,
                                              (unsigned int) vertex.specular_green / 255.0 ,
                                              (unsigned int) vertex.specular_blue / 255.0, 1.0 ) );
+		
+		if (fields & TEXTCOORDS)
+			_textcoords->push_back( osg::Vec2( vertex.u, vertex.v));
     }
 }
 
@@ -349,6 +367,8 @@ osg::Node* VertexData::readPlyFile( const char* filename, const bool ignoreColor
                     fields |= DIFFUSE;
                 if( equal_strings( props[j]->name, "specular_red" ) )
                     fields |= SPECULAR;
+				if (equal_strings(props[j]->name, "u"))
+					fields |= TEXTCOORDS;					
           }
 
             if( ignoreColors )
@@ -384,6 +404,10 @@ osg::Node* VertexData::readPlyFile( const char* filename, const bool ignoreColor
                 {
                     MESHASSERT( _specular->size() == static_cast< size_t >( nElems ) );
                 }
+				if (fields & TEXTCOORDS)
+				{
+					MESHASSERT(_textcoords->size() == static_cast< size_t >(nElems));
+				}
 
                 result = true;
             }
@@ -494,6 +518,10 @@ osg::Node* VertexData::readPlyFile( const char* filename, const bool ignoreColor
             osgUtil::SmoothingVisitor::smooth((*geom), osg::PI/2);
         }
 
+		if (_textcoords.valid()){
+			geom->setTexCoordArray(0, _textcoords);
+		}
+		
         // set flage true to activate the vertex buffer object of drawable
         geom->setUseVertexBufferObjects(true);
 
